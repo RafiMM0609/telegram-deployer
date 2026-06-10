@@ -1,4 +1,6 @@
 import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
 
 export const isAuthorized = (ctx, next) => {
   const allowedChatId = process.env.ALLOWED_CHAT_ID;
@@ -29,8 +31,16 @@ export async function validateAppRegistration(inputStr) {
     return { valid: false, message: 'Input mengandung karakter berbahaya yang dilarang.' };
   }
 
+  // Resolve tilde (~) to home directory
+  let resolvedDirectory = directory;
+  if (directory.startsWith('~/')) {
+    resolvedDirectory = path.join(os.homedir(), directory.slice(2));
+  } else if (directory === '~') {
+    resolvedDirectory = os.homedir();
+  }
+
   try {
-    const stat = await fs.stat(directory);
+    const stat = await fs.stat(resolvedDirectory);
     if (!stat.isDirectory()) {
        return { valid: false, message: 'Path yang diberikan ada, tetapi bukan sebuah folder.' };
     }
@@ -38,5 +48,5 @@ export async function validateAppRegistration(inputStr) {
     return { valid: false, message: `Folder tidak ditemukan di server: ${directory}` };
   }
 
-  return { valid: true, name, directory };
+  return { valid: true, name, directory: resolvedDirectory };
 }
