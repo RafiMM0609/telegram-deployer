@@ -10,6 +10,14 @@ import { getConfig, addApp, removeApp } from '../services/config.js';
 import { runDeploy } from '../services/deploy.js';
 import { validateAppRegistration } from '../utils/security.js';
 
+const escapeHTML = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
 // Simple in-memory state management for adding an app.
 // Key: chatId, Value: 'adding_app' | null
 const userStates = new Map();
@@ -55,9 +63,10 @@ export const setupHandlers = (bot) => {
   // Dynamic handler for deployment confirmation
   bot.action(/^deploy_confirm_(.+)$/, async (ctx) => {
     const appName = ctx.match[1];
+    const safeAppName = escapeHTML(appName);
     await ctx.editMessageText(
-      `⚠️ Anda yakin ingin menjalankan deployment untuk aplikasi: **${appName}**?`,
-      { parse_mode: 'Markdown', ...getDeployConfirmKeyboard(appName) }
+      `⚠️ Anda yakin ingin menjalankan deployment untuk aplikasi: <b>${safeAppName}</b>?`,
+      { parse_mode: 'HTML', ...getDeployConfirmKeyboard(appName) }
     );
   });
 
@@ -72,14 +81,16 @@ export const setupHandlers = (bot) => {
       return;
     }
 
-    await ctx.editMessageText(`⏳ Sedang memproses deployment **${appName}**... Mohon tunggu.`, { parse_mode: 'Markdown' });
+    const safeAppName = escapeHTML(appName);
+    await ctx.editMessageText(`⏳ Sedang memproses deployment <b>${safeAppName}</b>... Mohon tunggu.`, { parse_mode: 'HTML' });
 
     const result = await runDeploy(app.directory);
+    const safeOutput = escapeHTML(result.output);
 
     if (result.success) {
-      await ctx.reply(`✅ Deployment **${appName}** Berhasil!\n\n\`\`\`\n${result.output}\n\`\`\``, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ Deployment <b>${safeAppName}</b> Berhasil!\n\n<pre><code>${safeOutput}</code></pre>`, { parse_mode: 'HTML' });
     } else {
-      await ctx.reply(`❌ Deployment **${appName}** Gagal!\n\n\`\`\`\n${result.output}\n\`\`\``, { parse_mode: 'Markdown' });
+      await ctx.reply(`❌ Deployment <b>${safeAppName}</b> Gagal!\n\n<pre><code>${safeOutput}</code></pre>`, { parse_mode: 'HTML' });
     }
   });
 
@@ -102,17 +113,17 @@ export const setupHandlers = (bot) => {
 
     let msg = '📄 Daftar Konfigurasi Aplikasi:\n\n';
     apps.forEach((app, idx) => {
-      msg += `${idx + 1}. **${app.name}**\n   Path: \`${app.directory}\`\n\n`;
+      msg += `${idx + 1}. <b>${escapeHTML(app.name)}</b>\n   Path: <code>${escapeHTML(app.directory)}</code>\n\n`;
     });
 
-    await ctx.reply(msg, { parse_mode: 'Markdown' });
+    await ctx.reply(msg, { parse_mode: 'HTML' });
   });
 
   bot.action('config_add_app', async (ctx) => {
     userStates.set(ctx.chat.id, 'adding_app');
     await ctx.editMessageText(
-      '➕ **Tambah Aplikasi Baru**\n\nSilakan ketik nama aplikasi dan lokasi foldernya dengan format:\n\n`Nama_Aplikasi | /jalur/ke/folder`\n\nContoh: `backend-api | /home/user/apps/backend`',
-      { parse_mode: 'Markdown', ...getCancelAddAppKeyboard() }
+      '➕ <b>Tambah Aplikasi Baru</b>\n\nSilakan ketik nama aplikasi dan lokasi foldernya dengan format:\n\n<code>Nama_Aplikasi | /jalur/ke/folder</code>\n\nContoh: <code>backend-api | /home/user/apps/backend</code>',
+      { parse_mode: 'HTML', ...getCancelAddAppKeyboard() }
     );
   });
 
@@ -128,7 +139,8 @@ export const setupHandlers = (bot) => {
   bot.action(/^config_remove_run_(.+)$/, async (ctx) => {
     const appName = ctx.match[1];
     await removeApp(appName);
-    await ctx.editMessageText(`✅ Aplikasi **${appName}** berhasil dihapus dari konfigurasi.`, { parse_mode: 'Markdown' });
+    const safeAppName = escapeHTML(appName);
+    await ctx.editMessageText(`✅ Aplikasi <b>${safeAppName}</b> berhasil dihapus dari konfigurasi.`, { parse_mode: 'HTML' });
     
     // Automatically show config menu again
     setTimeout(async () => {
@@ -155,7 +167,7 @@ export const setupHandlers = (bot) => {
       await addApp(validation.name, validation.directory);
       userStates.delete(ctx.chat.id);
       
-      await ctx.reply(`✅ Aplikasi **${validation.name}** berhasil ditambahkan!\nPath: \`${validation.directory}\``, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ Aplikasi <b>${escapeHTML(validation.name)}</b> berhasil ditambahkan!\nPath: <code>${escapeHTML(validation.directory)}</code>`, { parse_mode: 'HTML' });
       await ctx.reply('⚙️ Kembali ke Pengaturan:', getConfigMenuKeyboard());
     } else {
       // If no state, perhaps guide them to menu
